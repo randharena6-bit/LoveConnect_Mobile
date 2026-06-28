@@ -1,10 +1,11 @@
 import {
   WebSocketGateway, WebSocketServer, SubscribeMessage,
   OnGatewayConnection, OnGatewayDisconnect, ConnectedSocket,
-  MessageBody, WsException,
+  MessageBody,
 } from '@nestjs/websockets';
 import { Server, Socket } from 'socket.io';
-import { UseGuards } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import * as jwt from 'jsonwebtoken';
 import { ChatService } from './chat.service';
 import { MessageContentType } from '../../database/entities/message.entity';
 
@@ -25,7 +26,10 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   private userSockets: Map<string, Set<string>> = new Map();
 
-  constructor(private readonly chatService: ChatService) {}
+  constructor(
+    private readonly chatService: ChatService,
+    private readonly configService: ConfigService,
+  ) {}
 
   async handleConnection(client: AuthenticatedSocket) {
     const token = client.handshake.auth?.token || client.handshake.query?.token;
@@ -35,8 +39,8 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     }
 
     try {
-      const jwt = require('jsonwebtoken');
-      const payload = jwt.verify(token, process.env.JWT_SECRET);
+      const secret = this.configService.get<string>('JWT_SECRET', 'default_secret');
+      const payload = jwt.verify(token, secret) as any;
       client.userId = payload.sub;
 
       client.join(`user:${payload.sub}`);

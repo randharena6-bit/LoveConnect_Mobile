@@ -1,17 +1,31 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { Notification, NotificationType } from '../../database/entities/notification.entity';
 import { User } from '../../database/entities/user.entity';
+import * as admin from 'firebase-admin';
 
 @Injectable()
 export class NotificationsService {
+  private readonly logger = new Logger(NotificationsService.name);
+
   constructor(
     @InjectRepository(Notification)
     private readonly notificationRepository: Repository<Notification>,
     @InjectRepository(User)
     private readonly userRepository: Repository<User>,
-  ) {}
+  ) {
+    if (!admin.apps.length) {
+      try {
+        admin.initializeApp({
+          credential: admin.credential.applicationDefault(),
+          projectId: process.env.FCM_PROJECT_ID,
+        });
+      } catch {
+        this.logger.warn('Firebase Admin not configured - push notifications disabled');
+      }
+    }
+  }
 
   async getNotifications(userId: string, page = 1, limit = 20) {
     const [notifications, total] = await this.notificationRepository.findAndCount({
@@ -77,14 +91,13 @@ export class NotificationsService {
     if (!user?.fcmToken) return;
 
     try {
-      const admin = require('firebase-admin');
       await admin.messaging().send({
         token: user.fcmToken,
         notification: { title, body },
         data: data as Record<string, string>,
       });
     } catch (error) {
-      console.error('Failed to send push notification:', error);
+      this.logger.error('Failed to send push notification', error instanceof Error ? error.message : String(error));
     }
   }
 

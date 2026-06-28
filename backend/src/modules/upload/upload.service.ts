@@ -1,20 +1,31 @@
 import { Injectable, BadRequestException, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import * as AWS from 'aws-sdk';
+import * as fs from 'fs';
+import * as path from 'path';
 
 @Injectable()
 export class UploadService {
   private readonly logger = new Logger(UploadService.name);
+  private s3: AWS.S3;
 
-  constructor(private readonly configService: ConfigService) {}
+  constructor(private readonly configService: ConfigService) {
+    const s3Bucket = this.configService.get<string>('S3_BUCKET', '');
+    if (s3Bucket) {
+      this.s3 = new AWS.S3({
+        region: this.configService.get<string>('S3_REGION'),
+        accessKeyId: this.configService.get<string>('S3_ACCESS_KEY'),
+        secretAccessKey: this.configService.get<string>('S3_SECRET_KEY'),
+      });
+    }
+  }
 
   async uploadFile(file: Express.Multer.File, folder: string = 'general'): Promise<string> {
     if (!file) {
       throw new BadRequestException('No file provided');
     }
 
-    const s3Enabled = this.configService.get<string>('S3_BUCKET');
-
-    if (s3Enabled) {
+    if (this.s3) {
       return this.uploadToS3(file, folder);
     }
 
@@ -26,31 +37,22 @@ export class UploadService {
   }
 
   async uploadToS3(file: Express.Multer.File, folder: string): Promise<string> {
-    const AWS = require('aws-sdk');
-    const s3 = new AWS.S3({
-      region: this.configService.get<string>('S3_REGION'),
-      accessKeyId: this.configService.get<string>('S3_ACCESS_KEY'),
-      secretAccessKey: this.configService.get<string>('S3_SECRET_KEY'),
-    });
-
     const key = `${folder}/${Date.now()}-${file.originalname}`;
 
-    const params = {
-      Bucket: this.configService.get<string>('S3_BUCKET'),
+    const bucket = this.configService.get<string>('S3_BUCKET', 'loveo-uploads');
+    const params: AWS.S3.PutObjectRequest = {
+      Bucket: bucket,
       Key: key,
       Body: file.buffer,
       ContentType: file.mimetype,
       ACL: 'public-read',
     };
 
-    const result = await s3.upload(params).promise();
+    const result = await this.s3.upload(params).promise();
     return result.Location;
   }
 
   async uploadLocal(file: Express.Multer.File, folder: string): Promise<string> {
-    const fs = require('fs');
-    const path = require('path');
-
     const uploadDir = path.join(process.cwd(), 'uploads', folder);
     if (!fs.existsSync(uploadDir)) {
       fs.mkdirSync(uploadDir, { recursive: true });
@@ -67,28 +69,18 @@ export class UploadService {
   async deleteFile(fileUrl: string): Promise<void> {
     if (!fileUrl) return;
 
-    const s3Enabled = this.configService.get<string>('S3_BUCKET');
-    if (s3Enabled && fileUrl.includes('amazonaws.com')) {
-      const AWS = require('aws-sdk');
-      const s3 = new AWS.S3({
-        region: this.configService.get<string>('S3_REGION'),
-        accessKeyId: this.configService.get<string>('S3_ACCESS_KEY'),
-        secretAccessKey: this.configService.get<string>('S3_SECRET_KEY'),
-      });
-
+    if (this.s3 && fileUrl.includes('amazonaws.com')) {
       const urlParts = fileUrl.split('/');
       const key = urlParts.slice(3).join('/');
-      const bucket = urlParts[2].split('.')[0];
 
-      await s3
+      const bucket = this.configService.get<string>('S3_BUCKET', 'loveo-uploads');
+      await this.s3
         .deleteObject({
-          Bucket: this.configService.get<string>('S3_BUCKET'),
+          Bucket: bucket,
           Key: key,
         })
         .promise();
     } else {
-      const fs = require('fs');
-      const path = require('path');
       const filepath = path.join(process.cwd(), fileUrl);
 
       if (fs.existsSync(filepath)) {
