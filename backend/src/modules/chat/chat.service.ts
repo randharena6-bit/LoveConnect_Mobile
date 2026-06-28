@@ -2,7 +2,7 @@ import {
   Injectable, NotFoundException, ForbiddenException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, In, Not } from 'typeorm';
 import { Conversation } from '../../database/entities/conversation.entity';
 import { Message, MessageContentType } from '../../database/entities/message.entity';
 import { Match } from '../../database/entities/match.entity';
@@ -218,5 +218,4 @@ export class ChatService {
   }
 }
 
-function In(ids: string[]) { return ids; }
-function Not(value: string) { return value; }
+

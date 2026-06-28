@@ -1,6 +1,6 @@
 import {
   Injectable, UnauthorizedException, ConflictException,
-  BadRequestException, Logger,
+  BadRequestException, NotFoundException, Logger,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
@@ -249,10 +249,12 @@ export class AuthService {
   }
 
   async getProfile(userId: string): Promise<User> {
-    return this.userRepository.findOne({
+    const user = await this.userRepository.findOne({
       where: { id: userId },
       relations: ['profile', 'profile.interests', 'photos', 'subscription', 'settings'],
     });
+    if (!user) throw new NotFoundException('User not found');
+    return user;
   }
 
   private async generateTokens(user: User): Promise<AuthTokens> {

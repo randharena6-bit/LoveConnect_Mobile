@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, Between, MoreThan } from 'typeorm';
 import { User, UserRole, UserStatus } from '../../database/entities/user.entity';
 import { Profile } from '../../database/entities/profile.entity';
 import { Match } from '../../database/entities/match.entity';
@@ -285,5 +285,4 @@ export class AdminService {
   }
 }
 
-function MoreThan(date: Date) { return date; }
-function Between(start: Date, end: Date) { return [start, end]; }
+

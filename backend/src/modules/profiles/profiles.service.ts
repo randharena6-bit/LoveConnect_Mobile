@@ -75,7 +75,7 @@ export class ProfilesService {
     return saved;
   }
 
-  async updateProfile(userId: string, dto: UpdateProfileDto): Promise<Profile> {
+  async updateProfile(userId: string, dto: Partial<CreateProfileDto>): Promise<Profile> {
     const profile = await this.getProfile(userId);
 
     if (dto.name !== undefined) profile.name = dto.name;
